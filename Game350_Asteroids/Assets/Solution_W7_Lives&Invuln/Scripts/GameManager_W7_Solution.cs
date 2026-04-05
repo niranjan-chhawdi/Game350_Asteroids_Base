@@ -1,5 +1,7 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+
 
 public class GameManager_W7_Solution : MonoBehaviour
 {
@@ -12,13 +14,15 @@ public class GameManager_W7_Solution : MonoBehaviour
     [SerializeField]
     private AsteroidSpawner_W7_Solution asteroidSpawner;
 
-    [SerializeField]
-    private TextMeshProUGUI livesTextNum;//TEMPORARY; will update the lives text
+    // [SerializeField]
+    // private TextMeshProUGUI livesTextNum;//TEMPORARY; will update the lives text
 
     [SerializeField]
-    float spawnDistance = 1f;
-    [SerializeField]
     float playerRespawnDelay = 3f;
+
+    [SerializeField]
+    private GameObject gameOverText;
+
 
     private Bounds screenBounds;
 
@@ -52,6 +56,11 @@ public class GameManager_W7_Solution : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        if (gameOverText != null)
+        {
+            gameOverText.SetActive(false);
+        }
+
         StartGame();
     }
 
@@ -89,6 +98,17 @@ public class GameManager_W7_Solution : MonoBehaviour
         Debug.Log("SCORE: " + score);
     }
 
+    public void RetryGame()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    public void GoToMainMenu()
+    {
+        SceneManager.LoadScene(0);
+    }
+
+
     public Bounds GetBounds()
     {
         return screenBounds;
@@ -104,10 +124,9 @@ public class GameManager_W7_Solution : MonoBehaviour
     private void SetLives(int lives)
     { 
         this.lives = lives;
+        Debug.Log("GAME_MANAGER: Lives_" + lives);
 
-        livesTextNum.text = this.lives < 0 ? "0" : this.lives.ToString();
-
-        Debug.Log("GAME_MANAGER: Lives_"+lives);
+        OnPlayerLivesChanged?.Invoke();;
     }
 
     public void OnPlayerDeath(Player_W7_Solution player)
@@ -133,6 +152,21 @@ public class GameManager_W7_Solution : MonoBehaviour
     private void EndGame()
     {
         Debug.Log("[GAME_MANAGER] GAME OVER");
+        if (gameOverText != null)
+        {
+            gameOverText.SetActive(true);
+        }
+
+        if (player != null)
+        {
+            PlayerInputManager inputManager = player.GetComponent<PlayerInputManager>();
+            if (inputManager != null)
+            {
+                inputManager.enabled = false;
+            }
+        }
+
+
     }
 
     //NO LONGER NEEDED

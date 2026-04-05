@@ -6,6 +6,8 @@ using UnityEngine.U2D;
 [RequireComponent(typeof(Rigidbody2D))]
 public class Player_W7_Solution : BaseWrappingObject_W7_Solution
 {
+
+    [SerializeField] private Transform firePoint;
     private Rigidbody2D rb;
 
     private GameObject thrustVisual;
@@ -17,17 +19,14 @@ public class Player_W7_Solution : BaseWrappingObject_W7_Solution
     //private Solution_W3_Bullet bulletPrefab;
 
     [SerializeField]
-    private float thrustSpeed = 1f;
-
-    private bool thrusting { get; set; }
-
+    private float thrustSpeed = 0.03f;
 
     [SerializeField]
-    private float rotationSpeed = 0.1f;
-    private float turnDirection;
+    private float rotationSpeed = 0.000000000000000008f;
 
     private bool isInvulnerable = false;
     private float invulnerabilityTime = 3f;
+    private IPlayerState currentState;
 
     //private Bounds screenBounds;
 
@@ -39,9 +38,11 @@ public class Player_W7_Solution : BaseWrappingObject_W7_Solution
         sprite = GetComponent<SpriteRenderer>();
 
         thrustVisual = transform.GetChild(0).gameObject;
-        ShowThrustVisual(false);
+        SetThrustVisual(false);
 
         objectPool = FindFirstObjectByType<Solution_W4_OPool>();
+
+        ChangeState(new NormalPlayerState());
 
         //REMOVE VV
         //calculate level bounds by using camera and camera's screen bounds
@@ -58,64 +59,105 @@ public class Player_W7_Solution : BaseWrappingObject_W7_Solution
     }
 
     // Update is called once per frame
-    void Update()
-    {
-        thrusting = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
+    // void Update()
+    // {
+    //     thrusting = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow);
 
-        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
-        {
-            turnDirection = 1f;
-        }
-        else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
-        {
-            turnDirection = -1f;
-        }
-        else
-        {
-            turnDirection = 0f;
-        }
+    //     if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+    //     {
+    //         turnDirection = 1f;
+    //     }
+    //     else if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+    //     {
+    //         turnDirection = -1f;
+    //     }
+    //     else
+    //     {
+    //         turnDirection = 0f;
+    //     }
 
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
-        {
-            Shoot();
-        }
-    }
+    //     if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
+    //     {
+    //         Shoot();
+    //     }
+    // }
+    
 
     private void FixedUpdate()
     {
-        ShowThrustVisual(thrusting);
-        if (thrusting)
-        {
-            rb.AddForce(transform.up * thrustSpeed);
-            
-        }
-
-        if (turnDirection != 0f)
-        {
-            //rb.AddTorque(rotationSpeed * turnDirection);
-            transform.Rotate(Vector3.forward, rotationSpeed * turnDirection);
-            rb.angularVelocity = 0f;
-        }
-
         ScreenWrap(rb);
     }
 
-    private void Shoot()
+    public void ChangeState(IPlayerState newState)
+    {
+        if (currentState != null)
+        {
+            currentState.Exit(this);
+        }
+
+        currentState = newState;
+        currentState.Enter(this);
+    }
+
+     public void Thrust()
+    {
+        rb.AddForce(transform.up * thrustSpeed);
+    }
+
+    public void TurnLeft()
+    {
+        transform.Rotate(Vector3.forward, rotationSpeed);
+        rb.angularVelocity = 0f;
+    }
+
+    public void TurnRight()
+    {
+        transform.Rotate(Vector3.forward, -rotationSpeed);
+        rb.angularVelocity = 0f;
+    }
+
+    public void Shoot()
     {
         //Solution_W3_Bullet bullet = Instantiate(bulletPrefab, transform.position, transform.rotation);
         //bullet.Shoot(transform.up); 
 
-        Debug.Log("[PLAYER] Shooting");
+        Debug.Log("[PLAYER] Single Shooting");
 
         Solution_W4_OpBullet bullet = (Solution_W4_OpBullet)objectPool.GetBulletPooledObject();
-        bullet.transform.position = transform.position;
-        bullet.transform.rotation = transform.rotation;
-        bullet.Shoot(transform.up);
+        bullet.transform.position = firePoint.position;
+        bullet.transform.rotation = firePoint.rotation;
+        bullet.Shoot(firePoint.right);
     }
 
-    private void ShowThrustVisual(bool show)
+    public void DoubleShoot()
+    {
+        Debug.Log("[PLAYER] Double Shooting");
+
+        float spreadAngle = 10f;
+
+        Solution_W4_OpBullet bulletLeft = (Solution_W4_OpBullet)objectPool.GetBulletPooledObject();
+        bulletLeft.transform.position = firePoint.position;
+        bulletLeft.transform.rotation = firePoint.rotation;
+        bulletLeft.Shoot(Quaternion.Euler(0, 0, -spreadAngle) * firePoint.right);
+
+        Solution_W4_OpBullet bulletRight = (Solution_W4_OpBullet)objectPool.GetBulletPooledObject();
+        bulletRight.transform.position = firePoint.position;
+        bulletRight.transform.rotation = firePoint.rotation;
+        bulletRight.Shoot(Quaternion.Euler(0, 0, spreadAngle) * firePoint.right);
+    }
+
+    
+
+    public void SetThrustVisual(bool show)
     {
         thrustVisual.SetActive(show);
+    }
+
+    public void SetPlayerAlpha(float alpha)
+    {
+        Color newColor = sprite.color;
+        newColor.a = alpha;
+        sprite.color = newColor;
     }
 
     public void ResetPlayer()
@@ -123,42 +165,35 @@ public class Player_W7_Solution : BaseWrappingObject_W7_Solution
         transform.position = Vector3.zero;
         transform.rotation = Quaternion.Euler(Vector3.zero);
 
-        isInvulnerable = true;
-        SetInvulnVisual();
+        ChangeState(new InvulnerablePlayerState());
 
-        Invoke(nameof(ResetInvulnerability), invulnerabilityTime);
+        Invoke(nameof(SetNormalState), invulnerabilityTime);
     }
 
-    private void SetInvulnVisual()
+    private void SetNormalState()
     {
-        Color newColor = sprite.color;
-
-        newColor.a = isInvulnerable ? 0.5f : 1f;
-
-        sprite.color = newColor;
+        ChangeState(new NormalPlayerState());
     }
 
-    private void ResetInvulnerability()
+    public void Die()
     {
-        isInvulnerable = false;
-        SetInvulnVisual();
+        rb.linearVelocity = Vector2.zero;
+        rb.angularVelocity = 0f;
+
+        SetThrustVisual(false);
+        ChangeState(new DeadPlayerState());
+
+        GameManager_W7_Solution.Instance.OnPlayerDeath(this);
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (isInvulnerable)
-            return;
-
-        if (collision.gameObject.CompareTag("Asteroid"))
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = 0f;
-
-            ShowThrustVisual(false);
-
-            GameManager_W7_Solution.Instance.OnPlayerDeath(this);
-        }
+        currentState.HandleCollision(this, collision);
     }
+
+   
+
+   
 
 
     //REMOVE VV
